@@ -1,0 +1,10 @@
+# فایل‌هایی که نباید به GitHub بروند
+.harness/
+.codegraph/
+filter-project/
+flight.txt
+share.html
+icon.svg
+test-bank.csv
+*.log
+.DS_Store

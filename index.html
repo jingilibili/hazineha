@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دفتر خرج‌ها — ثبت هزینه به فارسی</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="خرج‌ها">
+<link rel="apple-touch-icon" href="icons/apple-touch.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<script src="xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#1a2130; --panel2:#222b3d; --text:#e8ecf3;
+    --muted:#9aa7bd; --accent:#4f8cff; --accent2:#34d399; --danger:#f87171;
+    --border:#2c3850;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Vazirmatn","Segoe UI",Tahoma,sans-serif; line-height:1.7;
+    padding:16px; max-width:720px; margin-inline:auto;
+  }
+  h1{font-size:1.3rem; margin:0 0 4px}
+  .sub{color:var(--muted); font-size:.85rem; margin-bottom:16px}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:14px}
+  textarea{
+    width:100%; min-height:90px; resize:vertical; background:var(--panel2);
+    border:1px solid var(--border); border-radius:10px; color:var(--text);
+    padding:12px; font-family:inherit; font-size:1rem;
+  }
+  textarea:focus{outline:2px solid var(--accent)}
+  button{
+    background:var(--accent); color:#fff; border:none; border-radius:10px;
+    padding:10px 18px; font-family:inherit; font-size:.95rem; cursor:pointer; font-weight:600;
+  }
+  button.ghost{background:transparent; border:1px solid var(--border); color:var(--text)}
+  button.danger{background:var(--danger)}
+  button.small{padding:5px 12px; font-size:.82rem}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px}
+  .hint{color:var(--muted); font-size:.8rem; margin-top:6px}
+  .badge{display:inline-block; padding:2px 10px; border-radius:20px; font-size:.75rem; font-weight:600}
+  .badge.local{background:rgba(52,211,153,.15); color:var(--accent2)}
+  .badge.ai{background:rgba(79,140,255,.15); color:var(--accent)}
+  table{width:100%; border-collapse:collapse; font-size:.85rem}
+  th,td{padding:8px 6px; border-bottom:1px solid var(--border); text-align:right; vertical-align:top}
+  th{color:var(--muted); font-weight:600; font-size:.78rem}
+  .amount{color:var(--accent2); font-weight:700; white-space:nowrap}
+  .empty{color:var(--muted); text-align:center; padding:20px}
+  .tot{font-weight:800; color:var(--accent2)}
+  details{margin-top:14px}
+  summary{cursor:pointer; color:var(--muted); font-size:.85rem}
+  input[type=password],input[type=text]{
+    width:100%; background:var(--panel2); border:1px solid var(--border);
+    border-radius:10px; color:var(--text); padding:9px 12px; font-family:inherit;
+  }
+  .toast{
+    position:fixed; bottom:16px; right:16px; background:var(--panel2);
+    border:1px solid var(--border); border-radius:10px; padding:10px 16px;
+    font-size:.85rem; opacity:0; transition:opacity .3s; pointer-events:none;
+  }
+  .toast.show{opacity:1}
+  .stamp{color:var(--muted); font-size:.72rem}
+  .inputwrap{position:relative}
+  .inputwrap textarea{padding-left:56px}
+  .mic{
+    position:absolute; left:8px; bottom:8px; width:42px; height:42px;
+    background:var(--panel2); border:1px solid var(--border); border-radius:50%;
+    font-size:1.2rem; cursor:pointer; color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .mic.rec{background:var(--danger); color:#fff; animation:pulse 1s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(248,113,113,.5)}70%{box-shadow:0 0 0 12px rgba(248,113,113,0)}100%{box-shadow:0 0 0 0 rgba(248,113,113,0)}}
+  .badge.bank{background:rgba(251,191,36,.15); color:#fbbf24}
+  .vrow{display:flex; align-items:center; gap:8px; margin-top:8px; cursor:pointer; font-size:.82rem; color:var(--muted)}
+  /* پنل تأیید و ویرایش */
+  .confirm{
+    background:var(--panel); border:1px solid var(--accent); border-radius:14px;
+    padding:14px; margin-bottom:14px; display:none;
+  }
+  .confirm.show{display:block}
+  .field{display:flex; flex-direction:column; margin-bottom:10px}
+  .field label{font-size:.78rem; color:var(--muted); margin-bottom:3px}
+  .field input,.field select{
+    width:100%; background:var(--panel2); border:1px solid var(--border);
+    border-radius:10px; color:var(--text); padding:9px 12px; font-family:inherit; font-size:.95rem;
+  }
+  .field input:focus,.field select:focus{outline:2px solid var(--accent)}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .learn-note{font-size:.72rem; color:var(--accent2); margin-top:4px}
+  .rule{display:flex; justify-content:space-between; align-items:center; gap:8px;
+    background:var(--panel2); border-radius:8px; padding:6px 10px; margin-top:6px; font-size:.8rem}
+  .rule button{background:transparent; border:none; color:var(--danger); cursor:pointer; font-size:.8rem; padding:2px 6px}
+</style>
+</head>
+<body>
+  <h1>دفتر خرج‌ها</h1>
+  <div class="sub">بنویس چقدر برای چی خرج کردی، خودش می‌فهمد و در اکسل ذخیره می‌کند.</div>
+
+  <div class="card">
+    <div class="inputwrap">
+      <textarea id="inp" placeholder="مثلاً: امروز ۵۰ هزار تومن برای ناهار دادم
+یا: دیروز ساعت ۲ بعدازظهر ۱۲۰۰۰۰ تومان بابت بنزین"></textarea>
+      <button id="micBtn" class="mic" title="با صدا بگو">🎤</button>
+    </div>
+    <div class="row">
+      <button id="addBtn">ثبت خرج</button>
+      <button id="bankBtn" class="ghost">گردش حساب بانک</button>
+      <button id="exportBtn" class="ghost">دانلود اکسل (.xlsx)</button>
+      <button id="importBtn" class="ghost">باز کردن اکسل</button>
+      <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
+      <input type="file" id="bankFile" accept=".csv,.xlsx,.xls,.txt" style="display:none">
+    </div>
+    <label class="vrow">
+      <input type="checkbox" id="voiceOn" checked> خواندن جواب با صدا
+    </label>
+    <label class="vrow">
+      <input type="checkbox" id="aiVoice"> هوش مصنوعی صدای من را دقیق‌تر بفهمد (وقتی کلید Gemini فعال است)
+    </label>
+    <div class="hint" id="status"></div>
+  </div>
+
+  <div class="confirm" id="confirm">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <strong>بررسی و اصلاح</strong>
+      <span class="hint" id="confirmHint">اشتباه را درست کن — یاد می‌گیرم</span>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>مبلغ (تومان)</label><input id="cfAmount" type="text" inputmode="numeric"></div>
+      <div class="field"><label>دسته</label><select id="cfCategory">
+        <option>متفرقه</option><option>خوراک</option><option>حمل‌ونقل</option><option>پوشاک</option>
+        <option>قبوض و مخارج</option><option>سلامت</option><option>آموزش</option><option>هدیه</option>
+      </select></div>
+    </div>
+    <div class="field"><label>چی خریدی؟</label><input id="cfItem" type="text"></div>
+    <div class="grid2">
+      <div class="field"><label>تاریخ (شمسی)</label><input id="cfDate" type="text"></div>
+      <div class="field"><label>ساعت</label><input id="cfTime" type="text"></div>
+    </div>
+    <div class="row">
+      <button id="cfOk">تأیید و ثبت</button>
+      <button id="cfCancel" class="ghost">انصراف</button>
+    </div>
+  </div>
+
+  <details>
+    <summary>اتصال به هوش مصنوعی رایگان (Gemini) — اختیاری</summary>
+    <p class="hint" style="margin:6px 0">
+      اگه برنامه نتواند متن را خودش بفهمد، با این کلید از Gemini رایگان کمک می‌گیرد.
+      کلید رایگان را از
+      <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com/apikey</a>
+      بگیر و اینجا بچسبان (توی همین دستگاه ذخیره می‌شود، جای دیگری نمی‌رود).
+    </p>
+    <input type="password" id="apikey" placeholder="AIza...">
+    <div class="row">
+      <button id="saveKey" class="small">ذخیره کلید</button>
+      <button id="clearKey" class="small ghost">پاک کردن</button>
+      <span id="keyState" class="stamp"></span>
+    </div>
+  </details>
+
+  <details>
+    <summary>چیزهایی که از تو یاد گرفتم</summary>
+    <p class="hint" style="margin:6px 0">اصلاح‌هایی که توی کلمه‌ها و دسته‌ها انجام دادی اینجا ذخیره شده. هر وقت خواستی پاکش کن.</p>
+    <div id="learnBox"></div>
+    <div class="row">
+      <button id="clearLearn" class="small ghost">پاک کردن همه یادگیری‌ها</button>
+    </div>
+  </details>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <strong>فهرست خرج‌ها</strong>
+      <span class="tot" id="total"></span>
+    </div>
+    <table id="tbl">
+      <thead><tr><th>تاریخ</th><th>ساعت</th><th>چیز</th><th>دسته</th><th>مبلغ (تومان)</th><th></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty">هنوز چیزی ثبت نشده.</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+const LS_ENTRIES = 'expense_entries_v1';
+const LS_KEY = 'gemini_api_key';
+const LS_FIXES = 'voice_fixes_v1';
+const LS_CATRULES = 'category_rules_v1';
+
+// ---------- حافظه یادگیری ----------
+let voiceFixes = [];   // [{from, to}]
+let catRules = [];     // [{keyword, category}]
+function loadLearning(){
+  try{ voiceFixes = JSON.parse(localStorage.getItem(LS_FIXES) || '[]'); }catch(e){ voiceFixes = []; }
+  try{ catRules = JSON.parse(localStorage.getItem(LS_CATRULES) || '[]'); }catch(e){ catRules = []; }
+}
+function saveLearning(){
+  localStorage.setItem(LS_FIXES, JSON.stringify(voiceFixes));
+  localStorage.setItem(LS_CATRULES, JSON.stringify(catRules));
+}
+
+// ---------- ابزار اعداد فارسی ----------
+const FA = '۰۱۲۳۴۵۶۷۸۹', AR = '٠١٢٣٤٥٦٧٨٩';
+function toLatin(s){
+  return s
+    .replace(/[۰-۹]/g, d => FA.indexOf(d))
+    .replace(/[٠-٩]/g, d => AR.indexOf(d))
+    .replace(/[،]/g, ',');
+}
+function toFa(s){
+  return String(s).replace(/\d/g, d => FA[d]);
+}
+function toNum(s){
+  if(typeof s === 'number') return s;
+  if(s == null) return 0;
+  const t = toLatin(String(s)).replace(/[^\d.\-]/g,'');
+  const v = parseFloat(t);
+  return isNaN(v) ? 0 : v;
+}
+
+// ---------- اصلاح صدا (یادگیری) ----------
+const STOPWORDS = new Set(['امروز','دیروز','پریروز','ساعت','برای','بابت','جهت','خرید','تومان','تومن','ریال','هزار','میلیون','و','یک','دو','سه','چهار','پنج','شش','هفت','هشت','نه','ده','دادم','دادیم','داد','خریدم','خریدیم','پرداخت','کردم','کرد','رفتم','شده','شد','هست','بود','که','را','در','به','از','با','من']);
+function applyVoiceFixes(text){
+  let out = text;
+  // اصلاح‌های بلندتر اول (تا جایگزینی دقیق‌تر باشد)
+  const sorted = [...voiceFixes].sort((a,b)=>b.from.length-a.from.length);
+  for(const f of sorted){
+    if(f.from && f.from.length >= 2){
+      out = out.split(f.from).join(f.to);
+    }
+  }
+  return out;
+}
+function tokenize(s){
+  return s.replace(/[.،!؟؟:؛,]/g,' ').split(/\s+/).filter(Boolean);
+}
+// از مقایسه متن صدا (قبل) و متن اصلاح‌شده (بعد) جایگزینی‌های کلمه‌ای یاد بگیر
+function learnFromEdit(before, after){
+  if(!before || !after || before === after) return 0;
+  const b = tokenize(before), a = tokenize(after);
+  let learned = 0;
+  // کلمه‌هایی که حذف شده و جایگزین شده‌اند، جفت کن به ترتیب
+  const removed = b.filter(w => !a.includes(w) && !STOPWORDS.has(w) && w.length >= 2);
+  const added = a.filter(w => !b.includes(w) && !STOPWORDS.has(w) && w.length >= 2);
+  const pairs = Math.min(removed.length, added.length);
+  for(let i=0;i<pairs;i++){
+    const from = removed[i], to = added[i];
+    if(from === to) continue;
+    // اگر از قبل همین اصلاح هست، تازه نکن
+    if(voiceFixes.some(f => f.from === from && f.to === to)) continue;
+    // اگر from قبلاً به چیز دیگری اشاره می‌کرد، به‌روزش کن
+    const idx = voiceFixes.findIndex(f => f.from === from);
+    if(idx >= 0) voiceFixes[idx].to = to;
+    else voiceFixes.push({from, to});
+    learned++;
+  }
+  if(learned){ saveLearning(); renderLearning(); }
+  return learned;
+}
+
+// ---------- تقویم شمسی ----------
+const MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+function toJalali(gy, gm, gd){
+  const gdm = [0,31,59,90,120,151,181,212,243,273,304,334];
+  const gy2 = (gm > 2) ? gy + 1 : gy;
+  let days = 355666 + 365*gy + Math.floor((gy2+3)/4) - Math.floor((gy2+99)/100)
+             + Math.floor((gy2+399)/400) + gd + gdm[gm-1];
+  let jy = -1595 + 33*Math.floor(days/12053);
+  days %= 12053;
+  jy += 4*Math.floor(days/1461);
+  days %= 1461;
+  if(days > 365){ jy += Math.floor((days-1)/365); days = (days-1)%365; }
+  const jm = (days < 186) ? 1 + Math.floor(days/31) : 7 + Math.floor((days-186)/30);
+  const jd = 1 + ((days < 186) ? (days%31) : ((days-186)%30));
+  return [jy, jm, jd];
+}
+function todayJalali(offsetDays){
+  const d = new Date();
+  d.setDate(d.getDate() + (offsetDays||0));
+  return toJalali(d.getFullYear(), d.getMonth()+1, d.getDate());
+}
+function fmtJalali(j){ return j[0] + '/' + String(j[1]).padStart(2,'0') + '/' + String(j[2]).padStart(2,'0'); }
+
+// ---------- استخراج محلی ----------
+function extractAmount(text){
+  const s = toLatin(text);
+  const re = /(\d+(?:[.,]\d+)?)\s*(میلیون|هزار)?\s*(?:و\s*)?(\d+(?:[.,]\d+)?)?\s*(هزار)?\s*(تومان|تومن|ریال)/;
+  const m = s.match(re);
+  if(!m) return null;
+  let val = parseFloat(m[1].replace(',','.'));
+  if(m[2] === 'میلیون') val *= 1000000;
+  else if(m[2] === 'هزار') val *= 1000;
+  let val2 = m[3] ? parseFloat(m[3].replace(',','.')) : 0;
+  if(m[4] === 'هزار') val2 *= 1000;
+  let amount = val + val2;
+  if(m[5] === 'ریال') amount = Math.round(amount/10);
+  return amount;
+}
+
+function cleanItem(s){
+  s = s.replace(/[.،!؟؟]+\s*$/,'').trim();
+  const verbs = /(?:\s+(?:دادم|دادیم|داد|خریدم|خریدیم|خرید|پرداخت کردم|پرداخت کرد|پرداخت کردم|پرداخت|رفتم|رفته|رفته‌ام|زدم|زدیم|زد|کردم|کردیم|کرد|شده|شد|هست|بود))+\s*$/;
+  return s.replace(verbs,'').trim();
+}
+function extractItem(text){
+  const m = text.match(/(?:برای|بابت|جهت|خرید|بخریم|بابَت)\s+(.+)/);
+  if(m) return cleanItem(m[1]);
+  return null;
+}
+
+function extractDate(text){
+  const s = toLatin(text);
+  if(/امروز/.test(text)) return todayJalali(0);
+  if(/پریروز/.test(text)) return todayJalali(-2);
+  if(/دیروز/.test(text)) return todayJalali(-1);
+  let m = s.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if(m) return [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+  // "۱۲ مرداد" یا "مرداد ۱۲"
+  const names = MONTHS.map((n,i)=>[n,i]).sort((a,b)=>b[0].length-a[0].length);
+  for(const [name, idx] of names){
+    const mm = text.match(new RegExp('(\\d{1,2})\\s*' + name));
+    if(mm){
+      const now = todayJalali(0);
+      return [now[0], idx+1, parseInt(mm[1])];
+    }
+    const mm2 = text.match(new RegExp(name + '\\s*(\\d{1,2})'));
+    if(mm2){
+      const now = todayJalali(0);
+      return [now[0], idx+1, parseInt(mm2[1])];
+    }
+  }
+  return null;
+}
+
+function extractTime(text){
+  const s = toLatin(text);
+  let m = s.match(/ساعت\s*(\d{1,2})(?::(\d{2}))?/);
+  let h, min;
+  if(m){ h = parseInt(m[1]); min = m[2] ? parseInt(m[2]) : 0; }
+  else {
+    m = s.match(/\b(\d{1,2}):(\d{2})\b/);
+    if(m){ h = parseInt(m[1]); min = parseInt(m[2]); }
+    else return null;
+  }
+  // اصلاح صبح/بعدازظهر/شب
+  const afterNoon = /بعدازظهر|بعد از ظهر|عصر/.test(text);
+  const night = /شب/.test(text);
+  const noon = /ظهر/.test(text) && !afterNoon;
+  if(afterNoon && h < 12) h += 12;
+  if(night && h < 12) h += 12;
+  if(noon && h >= 5 && h < 12) h += 12;
+  return String(h).padStart(2,'0') + ':' + String(min).padStart(2,'0');
+}
+
+const CATS = [
+  [/غذا|ناهار|شام|صبحانه|کافه|رستوران|فست|پیتزا|چای|قهوه|خوراک|میوه|نان/, 'خوراک'],
+  [/بنزین|گازوئیل|تاکسی|اسنپ|تپسی|مترو|اتوبوس|کرایه|پارکینگ|هواپیما|قطار/, 'حمل‌ونقل'],
+  [/لباس|کفش|شلوار|پیراهن|کتونی|بووت/, 'پوشاک'],
+  [/برق|آب|گاز|تلفن|اینترنت|قبض|شارژ|موبایل|اجاره/, 'قبوض و مخارج'],
+  [/دارو|دکتر|بیمارستان|پزشک|آزمایش|دندان/, 'سلامت'],
+  [/کتاب|مدرسه|کلاس|دانشگاه|آموزش/, 'آموزش'],
+  [/هدیه|کادو/, 'هدیه'],
+];
+function inferCategory(item){
+  if(!item) return 'متفرقه';
+  // اول قوانین یادگرفته‌شده از کاربر
+  for(const r of catRules){
+    if(r.keyword && item.includes(r.keyword)) return r.category;
+  }
+  for(const [re, cat] of CATS){ if(re.test(item)) return cat; }
+  return 'متفرقه';
+}
+function learnCategory(item, category){
+  if(!item || !category || category === 'متفرقه') return;
+  // یک کلمه کلیدی از اسم چیز استخراج کن
+  const words = tokenize(item).filter(w => w.length >= 3);
+  const kw = words[words.length-1] || item;
+  if(!catRules.some(r => r.keyword === kw)) catRules.push({keyword: kw, category});
+  saveLearning(); renderLearning();
+}
+
+// ---------- هوش مصنوعی (Gemini) ----------
+async function callGemini(text, key){
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key;
+  const prompt =
+    'متن زیر را که کاربر فارسی درباره یک خرج نوشته است، تجزیه کن و فقط یک JSON معتبر برگردان ' +
+    'بدون هیچ متن اضافه. فیلدها: amount (عدد، مبلغ به تومان؛ اگر ریال بود تقسیم بر ۱۰ کن)، ' +
+    'item (رشته، چیزی که خریده)، date (رشته شمسی به شکل 1403/05/12؛ اگر امروز/دیروز بود تاریخ واقعی امروز را حساب کن)، ' +
+    'time (رشته به شکل 14:30)، category (رشته). اگر چیزی پیدا نشد null بگذار. ' +
+    'قالب خروجی دقیقا: {"amount":50000,"item":"ناهار","date":"1403/05/12","time":"14:30","category":"خوراک"}\n\n' +
+    'متن کاربر:\n' + text;
+  const res = await fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }] })
+  });
+  if(!res.ok){
+    const err = await res.text();
+    throw new Error('خطای API: ' + res.status + ' ' + err.slice(0,200));
+  }
+  const data = await res.json();
+  const txt = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if(!txt) throw new Error('پاسخ خالی از AI');
+  const clean = txt.replace(/```json|```/g,'').trim();
+  return JSON.parse(clean);
+}
+
+// ---------- وضعیت ----------
+let entries = [];
+function load(){
+  try{ entries = JSON.parse(localStorage.getItem(LS_ENTRIES) || '[]'); }
+  catch(e){ entries = []; }
+}
+function save(){
+  localStorage.setItem(LS_ENTRIES, JSON.stringify(entries));
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+function render(){
+  const tb = document.getElementById('tbody');
+  const empty = document.getElementById('empty');
+  tb.innerHTML = '';
+  if(entries.length === 0){ empty.style.display = 'block'; document.getElementById('total').textContent=''; }
+  else {
+    empty.style.display = 'none';
+    const total = entries.reduce((s,e)=>s+(e.amount||0), 0);
+    document.getElementById('total').textContent = 'جمع: ' + toFa(total.toLocaleString('en-US')) + ' تومان';
+    entries.slice().reverse().forEach((e, ri) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + (e.date ? toFa(e.date) : '—') + '</td>' +
+        '<td>' + (e.time || '—') + '</td>' +
+        '<td>' + (e.item || '—') + (e.source==='ai' ? ' <span class="badge ai">AI</span>' : '') + (e.source==='bank' ? ' <span class="badge bank">بانک</span>' : '') + '</td>' +
+        '<td>' + (e.category || 'متفرقه') + '</td>' +
+        '<td class="amount">' + toFa((e.amount||0).toLocaleString('en-US')) + '</td>' +
+        '<td><button class="small ghost" data-edit="' + (entries.length-1-ri) + '">ویرایش</button> <button class="small ghost danger" data-i="' + (entries.length-1-ri) + '">حذف</button></td>';
+      tb.appendChild(tr);
+    });
+  }
+}
+
+// نگه‌داری وضعیت تأیید
+let pendingRaw = null;     // متن صوتی اصلی (قبل از اصلاح)
+let currentParse = null;   // نتیجه پارس که منتظر تأیید است
+let editingIndex = null;   // وقتی در حال ویرایش ردیف قبلی هستیم
+
+async function addEntry(){
+  let raw = document.getElementById('inp').value.trim();
+  if(!raw){ toast('اول متن خرج را بنویس'); return; }
+  const status = document.getElementById('status');
+  status.innerHTML = '<span class="badge local">در حال خواندن متن…</span>';
+
+  // اصلاح‌های یادگرفته‌شده صوتی را اعمال کن
+  const fixed = applyVoiceFixes(raw);
+
+  let amount = extractAmount(fixed);
+  let item = extractItem(fixed);
+  let date = extractDate(fixed);
+  let time = extractTime(fixed);
+  let category = inferCategory(item);
+  let source = pendingRaw ? 'voice' : 'local';
+
+  // اگر منبع صدا بود و کاربر خواسته، یا محلی نفهمید → AI
+  const key = localStorage.getItem(LS_KEY);
+  const wantAiVoice = document.getElementById('aiVoice').checked && pendingRaw;
+  if(key && ((amount==null || !item) || wantAiVoice)){
+    try{
+      status.innerHTML = '<span class="badge ai">هوش مصنوعی دارد متن را می‌خواند…</span>';
+      const r = await callGemini(fixed, key);
+      if(r.amount!=null) amount = amount ?? r.amount;
+      if(!item && r.item) item = r.item;
+      if(!date && r.date) date = r.date;
+      if(!time && r.time) time = r.time;
+      if(r.category && category==='متفرقه') category = r.category;
+      source = 'ai';
+    }catch(err){
+      toast('خطای هوش مصنوعی: ' + err.message);
+      status.innerHTML = '';
+    }
+  }
+
+  status.innerHTML = '';
+
+  // نمایش پنل تأیید برای اصلاح (و یادگیری)
+  currentParse = {
+    amount: amount,
+    item: item || '',
+    date: date ? fmtJalali(date) : fmtJalali(todayJalali(0)),
+    time: time || '',
+    category: category || 'متفرقه',
+    source: source,
+    raw: raw,
+    fixed: fixed,
+    voiceBefore: pendingRaw  // متن خام صدا برای یادگیری
+  };
+  document.getElementById('cfAmount').value = amount != null ? amount : '';
+  document.getElementById('cfItem').value = item || '';
+  document.getElementById('cfDate').value = currentParse.date;
+  document.getElementById('cfTime').value = time || '';
+  document.getElementById('cfCategory').value = category || 'متفرقه';
+  document.getElementById('confirm').classList.add('show');
+  document.getElementById('cfItem').focus();
+  if(amount == null){
+    document.getElementById('confirmHint').textContent = 'مبلغ پیدا نشد — خودت بنویس';
+    document.getElementById('cfAmount').focus();
+  }else{
+    document.getElementById('confirmHint').textContent = 'اشتباه را درست کن — یاد می‌گیرم';
+  }
+}
+
+function confirmAdd(){
+  if(!currentParse) return;
+  const p = currentParse;
+  const amount = Math.round(toNum(document.getElementById('cfAmount').value));
+  const item = document.getElementById('cfItem').value.trim();
+  const date = document.getElementById('cfDate').value.trim();
+  const time = document.getElementById('cfTime').value.trim();
+  const category = document.getElementById('cfCategory').value;
+
+  if(!amount || amount <= 0){ toast('مبلغ را درست وارد کن'); return; }
+
+  // یادگیری: اگر کاربر متن صدا را اصلاح کرده بود، جایگزینی‌ها را یاد بگیر
+  if(p.voiceBefore){
+    learnFromEdit(p.voiceBefore, p.raw);
+  }
+  // یادگیری دسته: اگر کاربر دسته را عوض کرد
+  if(item && category !== (p.category || 'متفرقه') && category !== 'متفرقه'){
+    learnCategory(item, category);
+  }
+
+  const entry = {
+    date: date || fmtJalali(todayJalali(0)),
+    time: time || null,
+    item: item,
+    amount: amount,
+    category: category || 'متفرقه',
+    source: p.source,
+    raw: p.raw
+  };
+
+  if(editingIndex != null){
+    entry.source = entries[editingIndex].source;
+    entry.raw = entries[editingIndex].raw;
+    entries[editingIndex] = entry;
+  }else{
+    entries.push(entry);
+  }
+  save();
+  render();
+  document.getElementById('inp').value = '';
+  document.getElementById('confirm').classList.remove('show');
+  pendingRaw = null;
+  currentParse = null;
+  editingIndex = null;
+  toast('ثبت شد');
+  speak((item || 'خرج') + '، ' + toFa(amount.toLocaleString('en-US')) + ' تومان، ثبت شد');
+}
+
+function cancelConfirm(){
+  document.getElementById('confirm').classList.remove('show');
+  currentParse = null;
+  editingIndex = null;
+}
+
+function editEntry(i){
+  const e = entries[i];
+  editingIndex = i;
+  currentParse = { category: e.category, source: e.source, raw: e.raw, fixed: e.raw, voiceBefore: null };
+  document.getElementById('cfAmount').value = e.amount || '';
+  document.getElementById('cfItem').value = e.item || '';
+  document.getElementById('cfDate').value = e.date || '';
+  document.getElementById('cfTime').value = e.time || '';
+  document.getElementById('cfCategory').value = e.category || 'متفرقه';
+  document.getElementById('confirmHint').textContent = 'ویرایش ردیف — اصلاح کن تا یاد بگیرم';
+  document.getElementById('confirm').classList.add('show');
+  document.getElementById('cfItem').focus();
+}
+
+function exportXlsx(){
+  if(entries.length === 0){ toast('چیزی برای خروجی نیست'); return; }
+  const rows = entries.map(e => ({
+    'تاریخ (شمسی)': e.date || '',
+    'ساعت': e.time || '',
+    'چیز': e.item || '',
+    'دسته': e.category || 'متفرقه',
+    'مبلغ (تومان)': e.amount || 0,
+    'متن اصلی': e.raw || ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:8},{wch:22},{wch:16},{wch:14},{wch:40}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'خرج‌ها');
+  const d = new Date();
+  const name = 'hazineha-' + fmtJalali(todayJalali(0)).replace(/\//g,'-') + '.xlsx';
+  XLSX.writeFile(wb, name);
+  toast('فایل اکسل دانلود شد: ' + name);
+}
+
+function importXlsx(file){
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws);
+      let n = 0;
+      rows.forEach(r => {
+        entries.push({
+          date: r['تاریخ (شمسی)'] || '',
+          time: r['ساعت'] || null,
+          item: r['چیز'] || '',
+          category: r['دسته'] || 'متفرقه',
+          amount: Number(r['مبلغ (تومان)']) || 0,
+          source: 'local',
+          raw: r['متن اصلی'] || ''
+        });
+        n++;
+      });
+      save(); render();
+      toast(n + ' ردیف از اکسل اضافه شد');
+    }catch(err){
+      toast('نتوانستم فایل را بخوانم');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ---------- صدا (ورودی و خروجی) ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+function speak(text){
+  try{
+    if(!document.getElementById('voiceOn').checked) return;
+    if(!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'fa-IR';
+    u.rate = 1;
+    const voices = speechSynthesis.getVoices();
+    const fa = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('fa'));
+    if(fa) u.voice = fa;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function startVoice(){
+  const micBtn = document.getElementById('micBtn');
+  if(!SR){
+    toast('مرورگرت ورودی صوتی فارسی ندارد — از Chrome استفاده کن');
+    return;
+  }
+  if(rec){ try{rec.stop();}catch(e){} rec = null; micBtn.classList.remove('rec'); return; }
+  rec = new SR();
+  rec.lang = 'fa-IR';
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.onresult = e => {
+    const t = e.results[0][0].transcript;
+    const inp = document.getElementById('inp');
+    inp.value = (inp.value ? inp.value + ' ' : '') + t;
+    pendingRaw = t;  // متن خام صدا برای یادگیری اصلاح‌ها
+    micBtn.classList.remove('rec'); rec = null;
+  };
+  rec.onerror = e => {
+    micBtn.classList.remove('rec'); rec = null;
+    if(e.error !== 'no-speech' && e.error !== 'aborted') toast('خطای ضبط: ' + e.error);
+  };
+  rec.onend = () => { micBtn.classList.remove('rec'); rec = null; };
+  micBtn.classList.add('rec');
+  try{ rec.start(); }catch(e){ micBtn.classList.remove('rec'); rec = null; }
+}
+
+// ---------- گردش حساب بانک ----------
+function parseBankFile(file){
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      if(!rows.length){ toast('فایل خالی است'); return; }
+      const keys = Object.keys(rows[0]);
+      const find = re => keys.find(k => re.test(k));
+      const kDate  = find(/تاریخ|date|روز|روزانه/i);
+      const kDesc  = find(/شرح|بابت|توضیح|موضوع|توضیحات|description|نوع|عملیات/i);
+      const kDebit = find(/بدهکار|برداشت|debit|خرج/i);
+      const kAmt   = find(/مبلغ|amount/i);
+      let n = 0, skipped = 0;
+      rows.forEach(r => {
+        let amount = null;
+        if(kDebit && toNum(r[kDebit]) > 0) amount = toNum(r[kDebit]);
+        else if(kAmt){
+          const v = toNum(r[kAmt]);
+          if(v < 0) amount = Math.abs(v);
+        }
+        if(amount == null || amount === 0){ skipped++; return; } // واریز/صفر = خرج نیست
+        let date = null;
+        if(kDate){
+          const ds = toLatin(String(r[kDate]));
+          const m = ds.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+          if(m){
+            const y = parseInt(m[1]);
+            if(y > 1500) date = fmtJalali(toJalali(y, parseInt(m[2]), parseInt(m[3])));
+            else date = m[1] + '/' + m[2].padStart(2,'0') + '/' + m[3].padStart(2,'0');
+          }
+        }
+        const item = kDesc ? String(r[kDesc]) : '';
+        entries.push({
+          date: date || fmtJalali(todayJalali(0)),
+          time: null,
+          item: item,
+          amount: Math.round(amount),
+          category: inferCategory(item),
+          source: 'bank',
+          raw: item
+        });
+        n++;
+      });
+      save(); render();
+      const msg = n + ' خرج از گردش حساب اضافه شد' + (skipped ? ' (' + skipped + ' واریز رد شد)' : '');
+      toast(msg);
+      speak(n + ' خرج از گردش حساب اضافه شد');
+    }catch(err){
+      toast('نتوانستم فایل گردش حساب را بخوانم: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ---------- رویدادها ----------
+document.getElementById('addBtn').onclick = addEntry;
+document.getElementById('inp').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)) addEntry();
+});
+document.getElementById('exportBtn').onclick = exportXlsx;
+document.getElementById('importBtn').onclick = () => document.getElementById('file').click();
+document.getElementById('bankBtn').onclick = () => document.getElementById('bankFile').click();
+document.getElementById('micBtn').onclick = startVoice;
+document.getElementById('bankFile').onchange = e => {
+  if(e.target.files[0]) parseBankFile(e.target.files[0]);
+  e.target.value = '';
+};
+document.getElementById('file').onchange = e => {
+  if(e.target.files[0]) importXlsx(e.target.files[0]);
+  e.target.value = '';
+};
+document.getElementById('tbody').addEventListener('click', e => {
+  const b = e.target.closest('button[data-i]');
+  const ed = e.target.closest('button[data-edit]');
+  if(ed){ editEntry(parseInt(ed.dataset.edit)); return; }
+  if(b){
+    entries.splice(parseInt(b.dataset.i), 1);
+    save(); render(); toast('حذف شد');
+  }
+});
+document.getElementById('saveKey').onclick = () => {
+  const k = document.getElementById('apikey').value.trim();
+  if(k){ localStorage.setItem(LS_KEY, k); document.getElementById('keyState').textContent = 'کلید ذخیره شد ✓'; }
+};
+document.getElementById('clearKey').onclick = () => {
+  localStorage.removeItem(LS_KEY);
+  document.getElementById('apikey').value = '';
+  document.getElementById('keyState').textContent = 'کلید پاک شد';
+};
+if(localStorage.getItem(LS_KEY)) document.getElementById('keyState').textContent = 'کلید فعال است ✓';
+
+// ---------- نمایش یادگیری‌ها ----------
+function renderLearning(){
+  const box = document.getElementById('learnBox');
+  let html = '';
+  if(voiceFixes.length){
+    html += '<div class="stamp" style="margin-top:6px">اصلاح کلمه‌ها:</div>';
+    voiceFixes.forEach((f,i) => {
+      html += '<div class="rule"><span>«' + f.from + '» ← «' + f.to + '»</span><button data-fix="' + i + '">حذف</button></div>';
+    });
+  }
+  if(catRules.length){
+    html += '<div class="stamp" style="margin-top:8px">دسته‌بندی یادگرفته:</div>';
+    catRules.forEach((r,i) => {
+      html += '<div class="rule"><span>«' + r.keyword + '» ← «' + r.category + '»</span><button data-cat="' + i + '">حذف</button></div>';
+    });
+  }
+  if(!html) html = '<div class="stamp">هنوز چیزی یاد نگرفته‌ام — اشتباهات را اصلاح کن تا یاد بگیرم.</div>';
+  box.innerHTML = html;
+}
+
+document.getElementById('cfOk').onclick = confirmAdd;
+document.getElementById('cfCancel').onclick = cancelConfirm;
+document.getElementById('clearLearn').onclick = () => {
+  voiceFixes = []; catRules = [];
+  saveLearning(); renderLearning(); toast('همه یادگیری‌ها پاک شد');
+};
+document.getElementById('learnBox').addEventListener('click', e => {
+  const bf = e.target.closest('button[data-fix]');
+  const bc = e.target.closest('button[data-cat]');
+  if(bf){ voiceFixes.splice(parseInt(bf.dataset.fix),1); saveLearning(); renderLearning(); }
+  if(bc){ catRules.splice(parseInt(bc.dataset.cat),1); saveLearning(); renderLearning(); }
+});
+// وقتی کاربر دستی تایپ می‌کند، نشانه صدا را پاک کن
+document.getElementById('inp').addEventListener('input', () => {
+  if(!pendingRaw) return;
+  // فقط اگر متن از نسخه صوتی دور شد، نشانه را نگه دار برای یادگیری؛
+  // پاک کردن نشانه وقتی کاربر کاملاً پاکش کند
+  if(document.getElementById('inp').value.trim() === '') pendingRaw = null;
+});
+
+// پیش‌بارگذاری صداهای فارسی
+if('speechSynthesis' in window){
+  speechSynthesis.getVoices();
+  speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+}
+
+// ثبت service worker برای نصب به صفحه اصلی و کار آفلاین
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+
+loadLearning();
+renderLearning();
+load();
+render();
+</script>
+</body>
+</html>
