@@ -1,4 +1,4 @@
-const CACHE = 'hazineha-v1';
+const CACHE = 'hazineha-v2';
 const ASSETS = [
   './',
   './index.html',
