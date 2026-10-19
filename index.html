@@ -126,6 +126,11 @@
       <button id="pdfBtn" class="ghost">دانلود PDF</button>
       <button id="importBtn" class="ghost">باز کردن اکسل</button>
     </div>
+    <div class="row">
+      <button id="backupBtn" class="ghost small">پشتیبان کامل</button>
+      <button id="restoreBtn" class="ghost small">بازگردانی پشتیبان</button>
+      <input type="file" id="backupFile" accept=".json,application/json" style="display:none">
+    </div>
     <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
     <input type="file" id="bankFile" accept=".csv,.xlsx,.xls,.txt,text/csv" style="display:none">
     <div class="hint">فایل CSV یا Excel خروجی بانک را بده تا خرج‌ها خودکار وارد شوند.</div>
@@ -689,6 +694,59 @@ function exportPdf(){
   }
 }
 
+function backupAll(){
+  const data = {
+    app: 'hazineha',
+    version: 1,
+    exportedAt: fmtJalali(todayJalali(0)) + ' ' + nowTime(),
+    entries: entries,
+    voiceFixes: voiceFixes,
+    catRules: catRules,
+    geminiKey: localStorage.getItem(LS_KEY) || null
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'hazineha-backup-' + fmtJalali(todayJalali(0)).replace(/\//g,'-') + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  toast('پشتیبان کامل دانلود شد (' + entries.length + ' خرج)');
+}
+
+function restoreAll(file){
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data || !Array.isArray(data.entries)) throw new Error('ساختار فایل پشتیبان درست نیست');
+      const newCount = data.entries.length;
+      if(entries.length > 0){
+        const ok = confirm('داده‌های فعلی (' + entries.length + ' خرج) با این پشتیبان (' + newCount + ' خرج) جایگزین می‌شود. ادامه می‌دهی؟');
+        if(!ok){ toast('بازگردانی لغو شد'); return; }
+      }
+      entries = data.entries || [];
+      voiceFixes = data.voiceFixes || [];
+      catRules = data.catRules || [];
+      if(data.geminiKey){ localStorage.setItem(LS_KEY, data.geminiKey); }
+      save();
+      saveLearning();
+      loadLearning();
+      render();
+      renderLearning();
+      if(localStorage.getItem(LS_KEY)) document.getElementById('keyState').textContent = 'کلید فعال است ✓';
+      toast(newCount + ' خرج بازگردانی شد');
+      speak(newCount + ' خرج بازگردانی شد');
+    }catch(err){
+      toast('نتوانستم پشتیبان را بخوانم: ' + err.message);
+    }
+  };
+  reader.onerror = () => toast('خواندن فایل ناموفق بود');
+  reader.readAsText(file);
+}
+
 function importXlsx(file){
   const reader = new FileReader();
   reader.onload = function(e){
@@ -917,6 +975,12 @@ document.getElementById('cancelEdit').onclick = cancelEdit;
 document.getElementById('item').addEventListener('input', updateCategory);
 document.getElementById('exportBtn').onclick = exportXlsx;
 document.getElementById('pdfBtn').onclick = exportPdf;
+document.getElementById('backupBtn').onclick = backupAll;
+document.getElementById('restoreBtn').onclick = () => document.getElementById('backupFile').click();
+document.getElementById('backupFile').onchange = e => {
+  if(e.target.files[0]) restoreAll(e.target.files[0]);
+  e.target.value = '';
+};
 document.getElementById('importBtn').onclick = () => document.getElementById('file').click();
 document.getElementById('bankBtn').onclick = () => document.getElementById('bankFile').click();
 document.getElementById('bankFile').onchange = e => {
