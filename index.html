@@ -409,9 +409,9 @@ function extractDate(text){
   // نام ماه: "۱۲ مرداد" یا "مرداد ۱۲"
   const names = MONTHS.map((n,i)=>[n,i]).sort((a,b)=>b[0].length-a[0].length);
   for(const [name, idx] of names){
-    const mm = text.match(new RegExp('(\\d{1,2})\\s*' + name));
+    const mm = s.match(new RegExp('(\\d{1,2})\\s*' + name));
     if(mm){ const now = todayJalali(0); return [now[0], idx+1, parseInt(mm[1])]; }
-    const mm2 = text.match(new RegExp(name + '\\s*(\\d{1,2})'));
+    const mm2 = s.match(new RegExp(name + '\\s*(\\d{1,2})'));
     if(mm2){ const now = todayJalali(0); return [now[0], idx+1, parseInt(mm2[1])]; }
   }
   return null;
