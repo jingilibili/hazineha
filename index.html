@@ -362,9 +362,25 @@ function cleanItem(s){
   return s.replace(verbs,'').trim();
 }
 function extractItem(text){
+  // ۱) با حرف اضافه: «برای/بابت/جهت/خرید …»
   const m = text.match(/(?:برای|بابت|جهت|خرید|بخریم|بابَت)\s+(.+)/);
   if(m) return cleanItem(m[1]);
-  return null;
+
+  // ۲) بدون حرف اضافه: «[تاریخ] [مبلغ] تومان [نوع جنس] [فعل]»
+  // تاریخ/مبلغ/ساعت/واحد پول/فعل/اعداد را حذف کن، باقی‌مانده = نوع جنس
+  const skip = new Set(STOPWORDS);
+  ['پنجشنبه','چهارشنبه','سه‌شنبه','سه شنبه','دوشنبه','یکشنبه','شنبه','جمعه',
+   'زدم','زدیم','زد','خوردم','خوردیم','خورد','نوشیدم','نوشید','گرفتم','گرفتیم','گرفت',
+   'صبح','ظهر','عصر','شب','بعدازظهر','نصف‌شب','نصف شب'].forEach(w => skip.add(w));
+  for(const w in NUM_WORDS) skip.add(w);
+  const toks = tokenize(text);
+  const keep = [];
+  for(const t of toks){
+    if(/^\d+$/.test(toLatin(t))) continue;   // عدد خالص (فارسی/عربی/انگلیسی)
+    if(skip.has(t)) continue;       // کلمات حذف‌شدنی
+    keep.push(t);
+  }
+  return keep.length ? cleanItem(keep.join(' ')) : null;
 }
 
 function extractDate(text){
