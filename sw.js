@@ -1,8 +1,10 @@
-const CACHE = 'hazineha-v2';
+const CACHE = 'hazineha-v3';
 const ASSETS = [
   './',
   './index.html',
   './xlsx.full.min.js',
+  './jspdf.umd.min.js',
+  './html2canvas.min.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

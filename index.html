@@ -13,6 +13,8 @@
 <link rel="apple-touch-icon" href="icons/apple-touch.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <script src="xlsx.full.min.js"></script>
+<script src="jspdf.umd.min.js"></script>
+<script src="html2canvas.min.js"></script>
 <style>
   :root{
     --bg:#0f1420; --panel:#1a2130; --panel2:#222b3d; --text:#e8ecf3;
@@ -121,6 +123,7 @@
     <div class="row" style="margin-top:0">
       <button id="bankBtn" class="ghost">گردش مالی (فایل بانک)</button>
       <button id="exportBtn" class="ghost">دانلود اکسل</button>
+      <button id="pdfBtn" class="ghost">دانلود PDF</button>
       <button id="importBtn" class="ghost">باز کردن اکسل</button>
     </div>
     <input type="file" id="file" accept=".xlsx,.xls" style="display:none">
@@ -609,6 +612,83 @@ function exportXlsx(){
   toast('فایل اکسل دانلود شد: ' + name);
 }
 
+function exportPdf(){
+  if(entries.length === 0){ toast('چیزی برای خروجی نیست'); return; }
+  const status = document.getElementById('status');
+  status.innerHTML = '<span class="badge ai">در حال ساخت PDF…</span>';
+
+  // ساخت جدول تمیز برای PDF
+  const total = entries.reduce((s,e)=>s+(e.amount||0), 0);
+  const rowsHtml = entries.map(e =>
+    '<tr>' +
+    '<td>' + toFa(e.date || '') + '</td>' +
+    '<td>' + (e.time || '') + '</td>' +
+    '<td>' + (e.item || '') + '</td>' +
+    '<td>' + (e.category || 'متفرقه') + '</td>' +
+    '<td>' + (e.invoice ? toFa(e.invoice) : '—') + '</td>' +
+    '<td style="text-align:left;font-weight:bold">' + toFa((e.amount||0).toLocaleString('en-US')) + '</td>' +
+    '</tr>'
+  ).join('');
+
+  const html =
+    '<div style="direction:rtl;background:#ffffff;color:#1a1a1a;padding:24px;font-family:Vazirmatn,Tahoma,sans-serif;font-size:13px;">' +
+    '<h2 style="margin:0 0 4px;text-align:center">دفتر خرج‌ها</h2>' +
+    '<div style="text-align:center;color:#666;margin-bottom:16px">تاریخ: ' + toFa(fmtJalali(todayJalali(0))) + '</div>' +
+    '<table style="width:100%;border-collapse:collapse">' +
+    '<thead><tr style="background:#f0f0f0">' +
+    '<th style="border:1px solid #ccc;padding:6px">تاریخ</th>' +
+    '<th style="border:1px solid #ccc;padding:6px">ساعت</th>' +
+    '<th style="border:1px solid #ccc;padding:6px">چیز</th>' +
+    '<th style="border:1px solid #ccc;padding:6px">دسته</th>' +
+    '<th style="border:1px solid #ccc;padding:6px">فاکتور</th>' +
+    '<th style="border:1px solid #ccc;padding:6px">مبلغ</th>' +
+    '</tr></thead><tbody>' +
+    rowsHtml +
+    '<tr style="background:#eef7ff"><td colspan="5" style="border:1px solid #ccc;padding:6px;font-weight:bold">جمع کل</td>' +
+    '<td style="border:1px solid #ccc;padding:6px;text-align:left;font-weight:bold">' + toFa(total.toLocaleString('en-US')) + '</td></tr>' +
+    '</tbody></table></div>';
+
+  const div = document.createElement('div');
+  div.id = 'pdf-target';
+  div.style.cssText = 'position:fixed;right:-9999px;top:0;width:760px;background:#fff;';
+  div.innerHTML = html;
+  document.body.appendChild(div);
+
+  try{
+    html2canvas(div, {scale:2, backgroundColor:'#ffffff', useCORS:true}).then(canvas => {
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const pdf = new jspdf.jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgW = pageW - 10;
+      const imgH = canvas.height * imgW / canvas.width;
+      let heightLeft = imgH;
+      let position = 5;
+      pdf.addImage(imgData, 'JPEG', 5, position, imgW, imgH);
+      heightLeft -= (pageH - 10);
+      while(heightLeft > 0){
+        position -= (pageH - 10);
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 5, position, imgW, imgH);
+        heightLeft -= (pageH - 10);
+      }
+      const name = 'hazineha-' + fmtJalali(todayJalali(0)).replace(/\//g,'-') + '.pdf';
+      pdf.save(name);
+      document.body.removeChild(div);
+      status.innerHTML = '';
+      toast('فایل PDF دانلود شد: ' + name);
+    }).catch(err => {
+      document.body.removeChild(div);
+      status.innerHTML = '';
+      toast('خطا در ساخت PDF: ' + err.message);
+    });
+  }catch(err){
+    document.body.removeChild(div);
+    status.innerHTML = '';
+    toast('خطا در ساخت PDF: ' + err.message);
+  }
+}
+
 function importXlsx(file){
   const reader = new FileReader();
   reader.onload = function(e){
@@ -836,6 +916,7 @@ document.getElementById('yesterdayBtn').onclick = () => setDateTo(-1);
 document.getElementById('cancelEdit').onclick = cancelEdit;
 document.getElementById('item').addEventListener('input', updateCategory);
 document.getElementById('exportBtn').onclick = exportXlsx;
+document.getElementById('pdfBtn').onclick = exportPdf;
 document.getElementById('importBtn').onclick = () => document.getElementById('file').click();
 document.getElementById('bankBtn').onclick = () => document.getElementById('bankFile').click();
 document.getElementById('bankFile').onchange = e => {
