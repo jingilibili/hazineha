@@ -58,6 +58,12 @@
     font-size:.95rem; min-height:44px;
   }
   input:focus,select:focus,textarea:focus{outline:2px solid var(--accent)}
+  input[type=checkbox]{
+    width:18px; height:18px; min-height:18px; padding:0; margin:0;
+    accent-color:var(--accent); flex:none; cursor:pointer;
+  }
+  .filters{display:flex; gap:8px; margin:12px 0 4px}
+  .filters select{min-height:38px; font-size:.82rem; padding:6px 10px; flex:1}
   .toast{
     position:fixed; bottom:16px; right:16px; background:var(--panel2);
     border:1px solid var(--border); border-radius:10px; padding:10px 16px;
@@ -172,6 +178,20 @@
     <div style="display:flex;justify-content:space-between;align-items:center">
       <strong>فهرست خرج‌ها</strong>
       <span class="tot" id="total"></span>
+    </div>
+    <div class="filters">
+      <select id="sortSel">
+        <option value="newest">جدیدترین اول</option>
+        <option value="oldest">قدیمی‌ترین اول</option>
+        <option value="amount-desc">مبلغ: زیاد به کم</option>
+        <option value="amount-asc">مبلغ: کم به زیاد</option>
+      </select>
+      <select id="filterSel">
+        <option value="all">همه دسته‌ها</option>
+        <option>متفرقه</option><option>خوراک</option><option>غذا</option><option>حمل‌ونقل</option><option>پوشاک</option>
+        <option>قبوض و مخارج</option><option>سلامت</option><option>آموزش</option><option>هدیه</option>
+        <option>خرید دستگاه</option><option>تجهیزات کارگاهی</option><option>تنخواه</option>
+      </select>
     </div>
     <table id="tbl">
       <thead><tr><th>تاریخ</th><th>ساعت</th><th>چیز</th><th>مبلغ (تومان)</th><th></th></tr></thead>
@@ -470,20 +490,45 @@ function toast(msg){
   t._tm = setTimeout(()=>t.classList.remove('show'), 2800);
 }
 
+let sortMode = 'newest';
+let filterCat = 'all';
+
+function dateKey(d){
+  if(!d) return 0;
+  const m = toLatin(String(d)).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
+  if(!m) return 0;
+  return parseInt(m[1])*10000 + parseInt(m[2])*100 + parseInt(m[3]);
+}
+
+function visibleEntries(){
+  let list = entries.map((e, idx) => ({e, idx}));
+  if(filterCat !== 'all') list = list.filter(x => (x.e.category || 'متفرقه') === filterCat);
+  switch(sortMode){
+    case 'oldest':     list.sort((a,b) => dateKey(a.e.date) - dateKey(b.e.date)); break;
+    case 'amount-desc': list.sort((a,b) => (b.e.amount||0) - (a.e.amount||0)); break;
+    case 'amount-asc':  list.sort((a,b) => (a.e.amount||0) - (b.e.amount||0)); break;
+    default:           list.sort((a,b) => dateKey(b.e.date) - dateKey(a.e.date)); break; // newest
+  }
+  return list;
+}
+
 function render(){
   const tb = document.getElementById('tbody');
   const empty = document.getElementById('empty');
+  const totalEl = document.getElementById('total');
   tb.innerHTML = '';
-  if(entries.length === 0){
+  const list = visibleEntries();
+  if(list.length === 0){
     empty.style.display = 'block';
-    document.getElementById('total').textContent = '';
+    empty.textContent = entries.length === 0 ? 'هنوز چیزی ثبت نشده.' : 'با این فیلتر چیزی پیدا نشد.';
+    totalEl.textContent = '';
     return;
   }
   empty.style.display = 'none';
-  const total = entries.reduce((s,e)=>s+(e.amount||0), 0);
-  document.getElementById('total').textContent = 'جمع: ' + toFa(total.toLocaleString('en-US')) + ' تومان';
-  entries.slice().reverse().forEach((e, ri) => {
-    const i = entries.length-1-ri;
+  const total = list.reduce((s,x)=>s+(x.e.amount||0), 0);
+  const label = filterCat !== 'all' ? 'جمع (' + filterCat + '): ' : 'جمع: ';
+  totalEl.textContent = label + toFa(total.toLocaleString('en-US')) + ' تومان';
+  list.forEach(({e, idx}) => {
     const tr = document.createElement('tr');
     let itemCell = '<div>' + (e.item || '—') + (e.source==='ai' ? ' <span class="badge ai">AI</span>' : '') + (e.source==='bank' ? ' <span class="badge bank">بانک</span>' : '') + '</div>';
     itemCell += '<div class="item-detail">' + (e.category || 'متفرقه') + (e.invoice ? ' · فاکتور ' + toFa(e.invoice) : '') + '</div>';
@@ -492,7 +537,7 @@ function render(){
       '<td>' + (e.time || '—') + '</td>' +
       '<td>' + itemCell + '</td>' +
       '<td class="amount">' + toFa((e.amount||0).toLocaleString('en-US')) + '</td>' +
-      '<td style="white-space:nowrap"><button class="small ghost" data-edit="' + i + '">ویرایش</button> <button class="small ghost danger" data-i="' + i + '">حذف</button></td>';
+      '<td style="white-space:nowrap"><button class="small ghost" data-edit="' + idx + '">ویرایش</button> <button class="small ghost danger" data-i="' + idx + '">حذف</button></td>';
     tb.appendChild(tr);
   });
 }
@@ -973,6 +1018,8 @@ document.getElementById('todayBtn').onclick = () => setDateTo(0);
 document.getElementById('yesterdayBtn').onclick = () => setDateTo(-1);
 document.getElementById('cancelEdit').onclick = cancelEdit;
 document.getElementById('item').addEventListener('input', updateCategory);
+document.getElementById('sortSel').addEventListener('change', e => { sortMode = e.target.value; render(); });
+document.getElementById('filterSel').addEventListener('change', e => { filterCat = e.target.value; render(); });
 document.getElementById('exportBtn').onclick = exportXlsx;
 document.getElementById('pdfBtn').onclick = exportPdf;
 document.getElementById('backupBtn').onclick = backupAll;
